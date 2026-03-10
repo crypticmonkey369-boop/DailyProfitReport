@@ -1,4 +1,4 @@
-name: Daily Profit Report
+name: Daily Profit Report # discovery trigger
 
 on:
   # Run every day at 8:00 AM UTC = 6:00 PM AEST (UTC+10)
