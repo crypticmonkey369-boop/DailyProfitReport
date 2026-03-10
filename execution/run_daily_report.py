@@ -114,7 +114,10 @@ def run():
         from shopify_fetch_orders import fetch_yesterday_orders
         shopify_data = fetch_yesterday_orders()
     except Exception as e:
-        print(f"✗ Shopify fetch failed: {e}", file=sys.stderr)
+        msg = str(e)
+        print(f"[X] Shopify fetch failed: {msg}", file=sys.stderr)
+        from send_email_report import send_error_alert
+        send_error_alert(msg, step="Shopify order fetch")
         sys.exit(1)
 
     # ── Step 2: Fetch Meta Ads spend ────────────────────────────────────────
@@ -123,7 +126,10 @@ def run():
         from meta_fetch_spend import fetch_yesterday_spend
         meta_data = fetch_yesterday_spend()
     except Exception as e:
-        print(f"✗ Meta Ads fetch failed: {e}", file=sys.stderr)
+        msg = str(e)
+        print(f"[X] Meta Ads fetch failed: {msg}", file=sys.stderr)
+        from send_email_report import send_error_alert
+        send_error_alert(msg, step="Meta Ads spend fetch")
         sys.exit(1)
 
     # ── Step 3: Fetch Klaviyo revenue ───────────────────────────────────────
@@ -132,7 +138,10 @@ def run():
         from klaviyo_fetch_revenue import fetch_yesterday_revenue
         klaviyo_data = fetch_yesterday_revenue()
     except Exception as e:
-        print(f"✗ Klaviyo fetch failed: {e}", file=sys.stderr)
+        msg = str(e)
+        print(f"[X] Klaviyo fetch failed: {msg}", file=sys.stderr)
+        from send_email_report import send_error_alert
+        send_error_alert(msg, step="Klaviyo revenue fetch")
         sys.exit(1)
 
     # ── Step 4: Calculate profit ────────────────────────────────────────────
@@ -167,7 +176,10 @@ def run():
         from send_email_report import send_profit_email
         send_profit_email(full_record)
     except Exception as e:
-        print(f"✗ Email send failed: {e}", file=sys.stderr)
+        msg = str(e)
+        print(f"[X] Email send failed: {msg}", file=sys.stderr)
+        from send_email_report import send_error_alert
+        send_error_alert(msg, step="Email delivery")
         sys.exit(1)
 
     print("\n✓ Daily profit report pipeline completed successfully.\n")

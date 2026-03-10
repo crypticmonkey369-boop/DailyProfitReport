@@ -1,4 +1,4 @@
-﻿"""
+"""
 send_email_report.py
 ====================
 Layer 3 - Execution Script
@@ -36,6 +36,7 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 CREDENTIALS_PATH = os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json")
 TOKEN_PATH       = os.getenv("GOOGLE_TOKEN_PATH",       "token.json")
 REPORT_EMAIL     = os.getenv("REPORT_EMAIL",            "")
+ALERT_EMAIL      = os.getenv("ALERT_EMAIL",             "liam@makdivision.com.au")
 
 PROJECT_ROOT     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CREDENTIALS_PATH = os.path.join(PROJECT_ROOT, CREDENTIALS_PATH)
@@ -158,19 +159,69 @@ def send_profit_email(data: dict) -> None:
     subject, body = build_email_body(data)
     service       = get_gmail_service()
 
-    # Build MIME message
-    msg            = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = "me"  # Gmail API uses 'me' for the authenticated user
-    msg["To"]      = REPORT_EMAIL
-    msg.attach(MIMEText(body, "plain"))
+    # Support multiple recipients (comma-separated in REPORT_EMAIL)
+    recipients = [r.strip() for r in REPORT_EMAIL.split(",") if r.strip()]
 
-    # Encode to base64url as required by Gmail API
-    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    for recipient in recipients:
+        msg            = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = "me"
+        msg["To"]      = recipient
+        msg.attach(MIMEText(body, "plain"))
 
-    print(f"[Email] Sending report to {REPORT_EMAIL} via Gmail API...")
-    service.users().messages().send(userId="me", body={"raw": raw}).execute()
-    print(f"[Email] Report sent successfully to {REPORT_EMAIL}")
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        print(f"[Email] Sending report to {recipient}...")
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        print(f"[Email] Report sent to {recipient}")
+
+
+def send_error_alert(error_message: str, step: str = "Unknown") -> None:
+    """
+    Sends an error alert email to ALERT_EMAIL when the pipeline fails.
+    Uses the same Gmail API OAuth token.
+
+    Args:
+        error_message: The error string to include in the alert
+        step: Which pipeline step failed (e.g. 'Shopify fetch')
+    """
+    if not ALERT_EMAIL:
+        print("[Alert] No ALERT_EMAIL set — skipping error alert.")
+        return
+
+    try:
+        service = get_gmail_service()
+        now_aest = datetime.now(timezone(timedelta(hours=10))).strftime("%Y-%m-%d %H:%M AEST")
+
+        subject = f"[ALERT] Daily Profit Report Failed — {now_aest}"
+        body = f"""DAILY PROFIT REPORT — PIPELINE ERROR
+============================================================
+
+Time:  {now_aest}
+Step:  {step}
+
+Error:
+{error_message}
+
+------------------------------------------------------------
+The daily profit report did NOT complete successfully.
+Please check the GitHub Actions log for full details:
+https://github.com/crypticmonkey369-boop/DailyProfitReport/actions
+
+This is an automated alert.
+        """.strip()
+
+        msg            = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = "me"
+        msg["To"]      = ALERT_EMAIL
+        msg.attach(MIMEText(body, "plain"))
+
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        print(f"[Alert] Sending error alert to {ALERT_EMAIL}...")
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        print(f"[Alert] Error alert sent to {ALERT_EMAIL}")
+    except Exception as alert_err:
+        print(f"[Alert] Failed to send error alert: {alert_err}", file=sys.stderr)
 
 
 if __name__ == "__main__":
