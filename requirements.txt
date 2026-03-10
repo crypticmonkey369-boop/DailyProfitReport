@@ -1,0 +1,30 @@
+# Core Python dependencies for the Automation workspace
+# Install with: pip install -r requirements.txt
+
+# Environment
+python-dotenv>=1.0.0
+
+# HTTP / API calls
+requests>=2.31.0
+
+# Google APIs
+google-auth>=2.28.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.120.0
+
+# Google Sheets (simplified client — preferred over raw API)
+gspread>=6.0.0
+
+# Data processing
+pandas>=2.2.0
+openpyxl>=3.1.2
+
+# Shopify
+ShopifyAPI>=12.6.0
+
+# Facebook / Meta
+facebook-sdk>=3.1.0
+
+# Klaviyo
+klaviyo-api>=7.1.0

@@ -1,0 +1,78 @@
+name: Daily Profit Report
+
+on:
+  # Run every day at 8:00 AM UTC = 6:00 PM AEST (UTC+10)
+  # Note: During AEDT (Oct-Apr, UTC+11) this runs at 7:00 PM AEDT
+  schedule:
+    - cron: '0 8 * * *'
+
+  # Manual trigger from GitHub Actions UI for testing
+  workflow_dispatch:
+
+jobs:
+  profit-report:
+    name: Generate & Send Daily Profit Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # 1. Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Set up Python 3.11
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # 3. Install dependencies
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 4. Write .env file from GitHub Secrets
+      - name: Write .env from secrets
+        run: |
+          cat > .env << 'EOF'
+          SHOPIFY_STORE_URL=${{ secrets.SHOPIFY_STORE_URL }}
+          SHOPIFY_ACCESS_TOKEN=${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          FACEBOOK_ACCESS_TOKEN=${{ secrets.FACEBOOK_ACCESS_TOKEN }}
+          FACEBOOK_AD_ACCOUNT_ID=${{ secrets.FACEBOOK_AD_ACCOUNT_ID }}
+          KLAVIYO_API_KEY=${{ secrets.KLAVIYO_API_KEY }}
+          SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}
+          REPORT_EMAIL=${{ secrets.REPORT_EMAIL }}
+          COGS_PER_ORDER=${{ secrets.COGS_PER_ORDER }}
+          SHIPPING_PER_ORDER=${{ secrets.SHIPPING_PER_ORDER }}
+          PAYMENT_FEE_PCT=${{ secrets.PAYMENT_FEE_PCT }}
+          PAYMENT_FEE_FIXED=${{ secrets.PAYMENT_FEE_FIXED }}
+          KLAVIYO_ATTRIBUTION_DAYS=5
+          GOOGLE_CREDENTIALS_PATH=credentials.json
+          GOOGLE_TOKEN_PATH=token.json
+          EOF
+
+      # 5. Write Google credentials.json from secret
+      - name: Write Google credentials.json
+        run: |
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+
+      # 6. Write Google OAuth token.json from secret
+      #    This token covers: Sheets + Drive + Gmail send (no re-auth needed)
+      - name: Write Google token.json
+        run: |
+          echo '${{ secrets.GOOGLE_TOKEN_JSON }}' > token.json
+
+      # 7. Run the daily profit report pipeline
+      - name: Run daily profit report
+        env:
+          PYTHONUTF8: "1"
+        run: python execution/run_daily_report.py
+
+      # 8. Upload logs on failure for debugging
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-logs-${{ github.run_id }}
+          path: .tmp/
+          retention-days: 7
