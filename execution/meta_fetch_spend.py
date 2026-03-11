@@ -2,24 +2,10 @@
 meta_fetch_spend.py
 ===================
 Layer 3 — Execution Script
-
-Fetches yesterday's total ad spend from the Meta (Facebook) Marketing API.
-Uses account-level insights. Now AEST-aware.
-
-Usage:
-    python execution/meta_fetch_spend.py
-
-Output:
-    Prints a JSON summary to stdout. Importable as a module via fetch_yesterday_spend().
-
-Env vars required:
-    FACEBOOK_ACCESS_TOKEN    Long-lived user access token or system user token
-    FACEBOOK_AD_ACCOUNT_ID   Format: act_XXXXXXXXXX (include the 'act_' prefix)
 """
 
 import os
 import sys
-import io
 import json
 import requests
 from datetime import datetime, timezone, timedelta
@@ -28,37 +14,28 @@ from dotenv import load_dotenv
 if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
 if hasattr(sys.stderr, 'reconfigure'): sys.stderr.reconfigure(encoding='utf-8')
 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
-
-FACEBOOK_ACCESS_TOKEN  = os.getenv("FACEBOOK_ACCESS_TOKEN", "")
-FACEBOOK_AD_ACCOUNT_ID = os.getenv("FACEBOOK_AD_ACCOUNT_ID", "")
-
 GRAPH_API_VERSION = "v19.0"
 GRAPH_API_BASE    = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 
-
 def fetch_yesterday_spend() -> dict:
-    """
-    Fetches yesterday's total ad spend from Meta Ads at the account level.
-    """
-    if not FACEBOOK_ACCESS_TOKEN or not FACEBOOK_AD_ACCOUNT_ID:
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+    access_token = os.getenv("FACEBOOK_ACCESS_TOKEN", "").strip()
+    account_id   = os.getenv("FACEBOOK_AD_ACCOUNT_ID", "").strip()
+
+    if not access_token or not account_id:
         raise ValueError("FACEBOOK_ACCESS_TOKEN and FACEBOOK_AD_ACCOUNT_ID must be set in .env")
 
-    # Ensure account ID has the act_ prefix
-    account_id = FACEBOOK_AD_ACCOUNT_ID
     if not account_id.startswith("act_"):
         account_id = f"act_{account_id}"
 
-    # Calculate 'yesterday' in AEST
     aest_now = datetime.now(timezone.utc) + timedelta(hours=10)
     yesterday_date = (aest_now - timedelta(days=1)).strftime("%Y-%m-%d")
     
-    print(f"[Meta Ads] Fetching spend for {yesterday_date} (AEST) on account {account_id}")
+    print(f"[Meta Ads] Fetching spend for {yesterday_date} (AEST)")
 
     url = f"{GRAPH_API_BASE}/{account_id}/insights"
-    # We use time_range instead of date_preset to be explicit about the AEST day
     params = {
-        "access_token": FACEBOOK_ACCESS_TOKEN,
+        "access_token": access_token,
         "time_range":   json.dumps({"since": yesterday_date, "until": yesterday_date}),
         "level":        "account",
         "fields":       "spend,account_currency",
@@ -66,41 +43,24 @@ def fetch_yesterday_spend() -> dict:
     }
 
     response = requests.get(url, params=params, timeout=30)
-
     if response.status_code != 200:
         error_data = response.json().get("error", {})
-        raise RuntimeError(
-            f"Meta API error {response.status_code}: "
-            f"{error_data.get('message', response.text)}"
-        )
+        raise RuntimeError(f"Meta API error {response.status_code}: {error_data.get('message', response.text)}")
 
     data = response.json().get("data", [])
-
     if not data:
-        print(f"[Meta Ads] ℹ No active campaigns for {yesterday_date}. Spend = $0.00")
-        return {
-            "date":     yesterday_date,
-            "ad_spend": 0.0,
-            "currency": "AUD",
-        }
+        return {"date": yesterday_date, "ad_spend": 0.0, "currency": "AUD"}
 
     total_spend = sum(float(row.get("spend", 0)) for row in data)
     currency    = data[0].get("account_currency", "AUD")
 
-    result = {
-        "date":     yesterday_date,
-        "ad_spend": round(total_spend, 2),
-        "currency": currency,
-    }
-
+    result = {"date": yesterday_date, "ad_spend": round(total_spend, 2), "currency": currency}
     print(f"[Meta Ads] ✓ Ad Spend: {currency} ${result['ad_spend']:.2f}")
     return result
-
 
 if __name__ == "__main__":
     try:
         data = fetch_yesterday_spend()
-        print("\n--- Meta Ads Output ---")
         print(json.dumps(data, indent=2))
     except Exception as e:
         print(f"[Meta Ads] ✗ Error: {e}", file=sys.stderr)
