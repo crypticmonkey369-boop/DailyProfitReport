@@ -1,4 +1,4 @@
-﻿"""
+"""
 shopify_fetch_orders.py
 =======================
 Layer 3 — Execution Script
@@ -20,13 +20,13 @@ Env vars required:
 import os
 import sys
 import io
-import sys
-if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
-if hasattr(sys.stderr, 'reconfigure'): sys.stderr.reconfigure(encoding='utf-8')
 import json
 import requests
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+
+if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'): sys.stderr.reconfigure(encoding='utf-8')
 
 # Load environment variables from .env file in project root
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
@@ -36,11 +36,20 @@ SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN", "")
 
 
 def get_yesterday_window_utc():
-    """Return (start, end) ISO 8601 strings covering all of yesterday in UTC."""
-    today_utc = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    yesterday_start = today_utc - timedelta(days=1)
-    yesterday_end   = today_utc - timedelta(seconds=1)
-    return yesterday_start.strftime("%Y-%m-%dT%H:%M:%SZ"), yesterday_end.strftime("%Y-%m-%dT%H:%M:%SZ")
+    """Return (start, end) ISO 8601 strings in UTC, covering yesterday in AEST (UTC+10)."""
+    # 1. Get current time in AEST
+    aest_now = datetime.now(timezone.utc) + timedelta(hours=10)
+    
+    # 2. Get start/end of yesterday in AEST
+    yesterday_aest_start = (aest_now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_aest_end   = yesterday_aest_start + timedelta(hours=23, minutes=59, seconds=59)
+    
+    # 3. Convert AEST bounds back to UTC equivalents
+    # AEST is UTC+10, so UTC = AEST - 10 hours
+    utc_start = yesterday_aest_start - timedelta(hours=10)
+    utc_end   = yesterday_aest_end   - timedelta(hours=10)
+    
+    return utc_start.strftime("%Y-%m-%dT%H:%M:%SZ"), utc_end.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def fetch_all_orders(created_at_min: str, created_at_max: str) -> list:
@@ -107,23 +116,15 @@ def calculate_refunds(orders: list) -> float:
 def fetch_yesterday_orders() -> dict:
     """
     Main function. Fetches yesterday's sales data from Shopify.
-
-    Returns:
-        dict with keys:
-            date          (str)   — Yesterday's date YYYY-MM-DD
-            orders        (int)   — Number of orders placed
-            gross_revenue (float) — Total revenue including tax, before refunds
-            tax_total     (float) — Total tax collected
-            refunds       (float) — Total refunded amount
-            net_revenue   (float) — gross_revenue - tax_total - refunds
     """
     if not SHOPIFY_STORE_URL or not SHOPIFY_ACCESS_TOKEN:
         raise ValueError("SHOPIFY_STORE_URL and SHOPIFY_ACCESS_TOKEN must be set in .env")
 
     start, end = get_yesterday_window_utc()
-    yesterday_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    aest_now = datetime.now(timezone.utc) + timedelta(hours=10)
+    yesterday_date = (aest_now - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    print(f"[Shopify] Fetching orders from {start} → {end}")
+    print(f"[Shopify] Fetching orders from {start} → {end} (UTC window for AEST day)")
     orders = fetch_all_orders(start, end)
 
     # Only count financially processed orders (not pending/voided)
@@ -145,7 +146,6 @@ def fetch_yesterday_orders() -> dict:
     }
 
     print(f"[Shopify] ✓ Orders: {result['orders']} | Gross: ${result['gross_revenue']:.2f} | "
-          f"Tax: ${result['tax_total']:.2f} | Refunds: ${result['refunds']:.2f} | "
           f"Net: ${result['net_revenue']:.2f}")
     return result
 

@@ -1,11 +1,10 @@
-﻿"""
+"""
 meta_fetch_spend.py
 ===================
 Layer 3 — Execution Script
 
 Fetches yesterday's total ad spend from the Meta (Facebook) Marketing API.
-Uses account-level insights with the 'yesterday' date preset so it captures
-all campaigns, ad sets, and ads in a single API call.
+Uses account-level insights. Now AEST-aware.
 
 Usage:
     python execution/meta_fetch_spend.py
@@ -21,13 +20,13 @@ Env vars required:
 import os
 import sys
 import io
-import sys
-if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
-if hasattr(sys.stderr, 'reconfigure'): sys.stderr.reconfigure(encoding='utf-8')
 import json
 import requests
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+
+if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'): sys.stderr.reconfigure(encoding='utf-8')
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
@@ -41,12 +40,6 @@ GRAPH_API_BASE    = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 def fetch_yesterday_spend() -> dict:
     """
     Fetches yesterday's total ad spend from Meta Ads at the account level.
-
-    Returns:
-        dict with keys:
-            date      (str)   — Yesterday's date YYYY-MM-DD
-            ad_spend  (float) — Total spend in account currency
-            currency  (str)   — Currency code e.g. AUD
     """
     if not FACEBOOK_ACCESS_TOKEN or not FACEBOOK_AD_ACCOUNT_ID:
         raise ValueError("FACEBOOK_ACCESS_TOKEN and FACEBOOK_AD_ACCOUNT_ID must be set in .env")
@@ -56,13 +49,17 @@ def fetch_yesterday_spend() -> dict:
     if not account_id.startswith("act_"):
         account_id = f"act_{account_id}"
 
-    yesterday_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
-    print(f"[Meta Ads] Fetching spend for {yesterday_date} on account {account_id}")
+    # Calculate 'yesterday' in AEST
+    aest_now = datetime.now(timezone.utc) + timedelta(hours=10)
+    yesterday_date = (aest_now - timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    print(f"[Meta Ads] Fetching spend for {yesterday_date} (AEST) on account {account_id}")
 
     url = f"{GRAPH_API_BASE}/{account_id}/insights"
+    # We use time_range instead of date_preset to be explicit about the AEST day
     params = {
         "access_token": FACEBOOK_ACCESS_TOKEN,
-        "date_preset":  "yesterday",
+        "time_range":   json.dumps({"since": yesterday_date, "until": yesterday_date}),
         "level":        "account",
         "fields":       "spend,account_currency",
         "time_increment": 1,
@@ -70,7 +67,6 @@ def fetch_yesterday_spend() -> dict:
 
     response = requests.get(url, params=params, timeout=30)
 
-    # Handle API errors explicitly
     if response.status_code != 200:
         error_data = response.json().get("error", {})
         raise RuntimeError(
@@ -81,15 +77,13 @@ def fetch_yesterday_spend() -> dict:
     data = response.json().get("data", [])
 
     if not data:
-        # No active campaigns yesterday — zero spend, not an error
-        print(f"[Meta Ads] ℹ No active campaigns yesterday. Spend = $0.00")
+        print(f"[Meta Ads] ℹ No active campaigns for {yesterday_date}. Spend = $0.00")
         return {
             "date":     yesterday_date,
             "ad_spend": 0.0,
             "currency": "AUD",
         }
 
-    # Sum spend across all entries (should be a single row at account level)
     total_spend = sum(float(row.get("spend", 0)) for row in data)
     currency    = data[0].get("account_currency", "AUD")
 
