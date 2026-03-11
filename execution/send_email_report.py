@@ -162,6 +162,9 @@ def send_profit_email(data: dict) -> None:
     # Support multiple recipients (comma-separated in REPORT_EMAIL)
     recipients = [r.strip() for r in REPORT_EMAIL.split(",") if r.strip()]
 
+    # Debug: Log actual scopes from creds
+    print(f"[Debug] Active scopes: {service._http.credentials.scopes}")
+    
     for recipient in recipients:
         msg            = MIMEMultipart("alternative")
         msg["Subject"] = subject
