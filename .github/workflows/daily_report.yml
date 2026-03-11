@@ -1,10 +1,10 @@
 name: Daily Profit Report # discovery trigger
 
 on:
-  # Run every day at 8:00 AM UTC = 6:00 PM AEST (UTC+10)
-  # Note: During AEDT (Oct-Apr, UTC+11) this runs at 7:00 PM AEDT
+  # Run every day at 20:00 UTC = 6:00 AM AEST (UTC+10)
+  # Note: During AEDT (Oct-Apr, UTC+11) this runs at 7:00 AM AEDT
   schedule:
-    - cron: '0 8 * * *'
+    - cron: '0 20 * * *'
 
   # Manual trigger from GitHub Actions UI for testing
   workflow_dispatch:
