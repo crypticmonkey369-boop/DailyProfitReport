@@ -42,6 +42,7 @@ jobs:
           KLAVIYO_API_KEY=${{ secrets.KLAVIYO_API_KEY }}
           SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}
           REPORT_EMAIL=${{ secrets.REPORT_EMAIL }}
+          ALERT_EMAIL=${{ secrets.ALERT_EMAIL }}
           COGS_PER_ORDER=${{ secrets.COGS_PER_ORDER }}
           SHIPPING_PER_ORDER=${{ secrets.SHIPPING_PER_ORDER }}
           PAYMENT_FEE_PCT=${{ secrets.PAYMENT_FEE_PCT }}
