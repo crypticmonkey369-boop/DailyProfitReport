@@ -1,4 +1,4 @@
-"""
+﻿"""
 run_daily_report.py
 ===================
 Layer 2 — Orchestrator Script
@@ -105,10 +105,8 @@ def run():
     print("\n" + "="*52)
     print("  DAILY PROFIT REPORT — STARTING PIPELINE")
     print("="*52)
-    # Calculate 'yesterday' in AEST (UTC+10)
-    aest_now = datetime.now(timezone.utc) + timedelta(hours=10)
-    yesterday = (aest_now - timedelta(days=1)).strftime("%Y-%m-%d")
-    print(f"  Reporting date: {yesterday} (AEST)\n")
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    print(f"  Reporting date: {yesterday} (UTC)\n")
 
     # ── Step 1: Fetch Shopify orders ────────────────────────────────────────
     print("[1/5] Fetching Shopify orders...")
