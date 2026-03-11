@@ -162,14 +162,6 @@ def send_profit_email(data: dict) -> None:
     # Support multiple recipients (comma-separated in REPORT_EMAIL)
     recipients = [r.strip() for r in REPORT_EMAIL.split(",") if r.strip()]
 
-    # Debug: Log actual scopes and account from creds
-    print(f"[Debug] Active scopes: {service._http.credentials.scopes}")
-    try:
-        profile = service.users().getProfile(userId="me").execute()
-        print(f"[Debug] Authenticated as: {profile.get('emailAddress')}")
-    except Exception as e:
-        print(f"[Debug] Could not fetch profile: {e}")
-    
     for recipient in recipients:
         msg            = MIMEMultipart("alternative")
         msg["Subject"] = subject

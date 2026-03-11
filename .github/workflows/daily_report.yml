@@ -63,10 +63,7 @@ jobs:
       - name: Write Google token.json
         env:
           GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
-        run: |
-          printf '%s' "$GOOGLE_TOKEN_JSON" > token.json
-          # Debug: Verify scopes exist (without printing the whole token)
-          python -c "import json; t=json.load(open('token.json')); print('Scopes in runner token:', t.get('scopes', []))"
+        run: printf '%s' "$GOOGLE_TOKEN_JSON" > token.json
 
       # 7. Run the daily profit report pipeline
       - name: Run daily profit report
