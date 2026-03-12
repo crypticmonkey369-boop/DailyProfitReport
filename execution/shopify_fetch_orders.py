@@ -1,4 +1,4 @@
-﻿"""
+"""
 shopify_fetch_orders.py
 =======================
 Layer 3 — Execution Script
@@ -35,12 +35,24 @@ SHOPIFY_STORE_URL   = os.getenv("SHOPIFY_STORE_URL", "").rstrip("/")
 SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN", "")
 
 
-def get_yesterday_window_utc():
-    """Return (start, end) ISO 8601 strings covering all of yesterday in UTC."""
-    today_utc = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    yesterday_start = today_utc - timedelta(days=1)
-    yesterday_end   = today_utc - timedelta(seconds=1)
-    return yesterday_start.strftime("%Y-%m-%dT%H:%M:%SZ"), yesterday_end.strftime("%Y-%m-%dT%H:%M:%SZ")
+AEST = timezone(timedelta(hours=10))
+
+
+def get_yesterday_window_aest():
+    """
+    Return (start, end) ISO 8601 UTC strings covering all of yesterday in AEST.
+    
+    AEST midnight = 14:00 UTC previous day
+    AEST 23:59:59 = 13:59:59 UTC same day
+    
+    Example: AEST day 2026-03-12 = UTC 2026-03-11T14:00:00Z to 2026-03-12T13:59:59Z
+    """
+    today_aest      = datetime.now(AEST).replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_aest  = today_aest - timedelta(days=1)
+    # Convert AEST midnight → UTC, and AEST 23:59:59 → UTC
+    start_utc = yesterday_aest.astimezone(timezone.utc)
+    end_utc   = (yesterday_aest + timedelta(days=1) - timedelta(seconds=1)).astimezone(timezone.utc)
+    return start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"), end_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def fetch_all_orders(created_at_min: str, created_at_max: str) -> list:
@@ -120,10 +132,11 @@ def fetch_yesterday_orders() -> dict:
     if not SHOPIFY_STORE_URL or not SHOPIFY_ACCESS_TOKEN:
         raise ValueError("SHOPIFY_STORE_URL and SHOPIFY_ACCESS_TOKEN must be set in .env")
 
-    start, end = get_yesterday_window_utc()
-    yesterday_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    start, end = get_yesterday_window_aest()
+    yesterday_date = (datetime.now(AEST) - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    print(f"[Shopify] Fetching orders from {start} → {end}")
+    print(f"[Shopify] Fetching orders for {yesterday_date} (AEST)")
+    print(f"[Shopify] UTC window: {start} → {end}")
     orders = fetch_all_orders(start, end)
 
     # Only count financially processed orders (not pending/voided)

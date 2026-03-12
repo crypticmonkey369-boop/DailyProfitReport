@@ -52,18 +52,48 @@ jobs:
           GOOGLE_TOKEN_PATH=token.json
           EOF
 
-      # 5. Write Google credentials.json from secret
-      - name: Write Google credentials.json
+      # 5. Generate fresh Google token.json at runtime (self-healing, never expires)
+      #    Uses refresh_token + client credentials to get a brand-new access_token
+      - name: Generate Google token.json
         env:
-          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-        run: printf '%s' "$GOOGLE_CREDENTIALS_JSON" > credentials.json
-
-      # 6. Write Google OAuth token.json from secret
-      #    This token covers: Sheets + Drive + Gmail send (no re-auth needed)
-      - name: Write Google token.json
-        env:
-          GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
-        run: printf '%s' "$GOOGLE_TOKEN_JSON" > token.json
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          python - <<'PYEOF'
+          import json, os, requests
+          r = requests.post("https://oauth2.googleapis.com/token", data={
+              "client_id":     os.environ["GOOGLE_CLIENT_ID"],
+              "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+              "refresh_token": os.environ["GOOGLE_REFRESH_TOKEN"],
+              "grant_type":    "refresh_token",
+          }).json()
+          if "access_token" not in r:
+              raise RuntimeError(f"Token refresh failed: {r}")
+          token = {
+              "token":         r["access_token"],
+              "refresh_token": os.environ["GOOGLE_REFRESH_TOKEN"],
+              "token_uri":     "https://oauth2.googleapis.com/token",
+              "client_id":     os.environ["GOOGLE_CLIENT_ID"],
+              "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+              "scopes": [
+                  "https://www.googleapis.com/auth/spreadsheets",
+                  "https://www.googleapis.com/auth/drive.file",
+                  "https://www.googleapis.com/auth/gmail.send",
+              ],
+          }
+          json.dump(token, open("token.json", "w"))
+          # Also write credentials.json so InstalledAppFlow fallback works
+          creds = {"installed": {
+              "client_id":     os.environ["GOOGLE_CLIENT_ID"],
+              "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
+              "token_uri":     "https://oauth2.googleapis.com/token",
+              "auth_uri":      "https://accounts.google.com/o/oauth2/auth",
+              "redirect_uris": ["http://localhost"],
+          }}
+          json.dump(creds, open("credentials.json", "w"))
+          print("Fresh token.json + credentials.json generated successfully.")
+          PYEOF
 
       # 7. Run the daily profit report pipeline
       - name: Run daily profit report
