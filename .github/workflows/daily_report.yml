@@ -97,34 +97,7 @@ jobs:
               "redirect_uris": ["http://localhost"],
           }}
           json.dump(creds, open("credentials.json", "w"))
-          # Quick sanity check — returned scopes from Google
-          print(f"Granted scopes: {r.get('scope', 'NONE')}")
-          print(f"Token expiry: {expiry}")
           print("Fresh token.json + credentials.json generated successfully.")
-          PYEOF
-
-      # 6. Diagnostic: Test Gmail API directly
-      - name: Test Gmail API
-        run: |
-          python - <<'PYEOF'
-          from google.oauth2.credentials import Credentials
-          from googleapiclient.discovery import build
-          SCOPES = [
-              "https://www.googleapis.com/auth/spreadsheets",
-              "https://www.googleapis.com/auth/drive.file",
-              "https://www.googleapis.com/auth/gmail.send",
-          ]
-          creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-          print(f"Creds valid: {creds.valid}")
-          print(f"Creds expired: {creds.expired}")
-          print(f"Creds scopes: {creds.scopes}")
-          print(f"Creds has refresh: {bool(creds.refresh_token)}")
-          svc = build("gmail", "v1", credentials=creds)
-          try:
-              result = svc.users().labels().list(userId="me").execute()
-              print(f"Gmail labels accessible: {len(result.get('labels', []))} labels found")
-          except Exception as e:
-              print(f"Gmail labels FAILED: {e}")
           PYEOF
 
       # 7. Run the daily profit report pipeline
